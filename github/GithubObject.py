@@ -43,7 +43,6 @@ from datetime import datetime, timezone
 from operator import itemgetter
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
-from dateutil import parser
 from typing_extensions import Protocol, TypeGuard
 
 from . import Consts
@@ -62,6 +61,15 @@ class Attribute(Protocol[T_co]):
     @property
     def value(self) -> T_co:
         raise NotImplementedError
+
+
+def _datetime_from_github_isoformat(value: str) -> datetime:
+    # Github always returns YYYY-MM-DDTHH:MM:SSZ, so we can use the stdlib parser
+    # with some minor adjustments for Python < 3.11 which doesn't support "Z"
+    # https://docs.github.com/en/rest/overview/resources-in-the-rest-api#schema
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
 
 
 class _NotSetType:
@@ -234,7 +242,7 @@ class GithubObject:
 
     @staticmethod
     def _makeDatetimeAttribute(value: Optional[str]) -> Attribute[datetime]:
-        return GithubObject.__makeTransformedAttribute(value, str, parser.parse)  # type: ignore
+        return GithubObject.__makeTransformedAttribute(value, str, _datetime_from_github_isoformat)  # type: ignore
 
     def _makeClassAttribute(self, klass: Type[T_gh], value: Any) -> Attribute[T_gh]:
         return GithubObject.__makeTransformedAttribute(
